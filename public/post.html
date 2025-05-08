@@ -1,1 +1,277 @@
-// Insert your post.html code here.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create and Manage Posts</title>
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    header {
+      background-color: #0077cc;
+      color: #fff;
+      padding: 20px;
+      text-align: right;
+    }
+    h1 {
+      color: #333;
+      font-size: 2.5em;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    .post-form, .post-list {
+      width: 60%;
+      margin: 50px auto;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    label, textarea {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 1.2em;
+      color: #333;
+    }
+    textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #0099ff;
+      color: #fff;
+      padding: 10px 20px;
+      font-size: 1.2em;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .post {
+      border-bottom: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .post-text {
+      flex-grow: 1;
+      margin-right: 10px;
+      font-size: 1.1em;
+      color: #333;
+    }
+    .edit-post-btn, .delete-post-btn {
+      padding: 8px;
+      margin-right: 5px;
+      cursor: pointer;
+      background-color: #0099ff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+    }
+    .pagination {
+      margin-top: 20px;
+    }
+    .pagination button {
+      background-color: #0099ff;
+      color: #fff;
+      border: none;
+      padding: 10px;
+      margin: 0 5px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+    .pagination button:hover {
+      background-color: #0077cc;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <button id="logoutBtn" onclick="logout()">Logout</button>
+  </header>
+
+  <h1>Create and Manage Posts</h1>
+
+  <div class="post-form">
+    <label for="text">Create a new post:</label>
+    <textarea id="text" name="text" rows="4" required></textarea>
+    <button onclick="createPost()">Create Post</button>
+  </div>
+
+  <div class="post-list" id="postList"></div>
+  <div class="pagination" id="pagination"></div>
+
+  <script>
+    const postsPerPage = 3;
+    let currentPage = 1;
+
+    // On page load, fetch the posts
+    document.addEventListener('DOMContentLoaded', () => {
+      getPosts();
+    });
+
+    // Create a new post
+    async function createPost() {
+      const text = document.getElementById('text').value;
+      if (!text) return alert('Post text cannot be empty');
+
+      try {
+        const response = await fetch('/post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          document.getElementById('text').value = '';
+          currentPage = 1; // Reset to first page after new post
+          getPosts(); // Refresh list
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error creating post');
+      }
+    }
+
+    // Fetch posts from the server
+    async function getPosts() {
+      try {
+        const response = await fetch('/posts', { method: 'GET' });
+        const data = await response.json();
+        if (response.ok) {
+          renderPosts(data.posts);
+        } else {
+          console.error(data.message);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    // Render the posts into the DOM with pagination
+    function renderPosts(posts) {
+      const postList = document.getElementById('postList');
+      const pagination = document.getElementById('pagination');
+      postList.innerHTML = '';
+
+      if (posts.length === 0) {
+        postList.innerHTML = '<p>No posts available.</p>';
+        pagination.innerHTML = '';
+        return;
+      }
+
+      // Calculate slice indices for the current page
+      const startIndex = (currentPage - 1) * postsPerPage;
+      const endIndex = startIndex + postsPerPage;
+      const paginatedPosts = posts.slice(startIndex, endIndex);
+
+      // Render posts for the current page
+      paginatedPosts.forEach(post => {
+        const postDiv = document.createElement('div');
+        postDiv.className = 'post';
+
+        const postText = document.createElement('div');
+        postText.className = 'post-text';
+        postText.textContent = post.text;
+
+        // Edit button
+        const editButton = document.createElement('button');
+        editButton.textContent = 'Edit';
+        editButton.className = 'edit-post-btn';
+        editButton.onclick = () => editPost(post);
+
+        // Delete button
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.className = 'delete-post-btn';
+        deleteButton.onclick = () => deletePost(post._id);
+
+        postDiv.appendChild(postText);
+        postDiv.appendChild(editButton);
+        postDiv.appendChild(deleteButton);
+        postList.appendChild(postDiv);
+      });
+
+      // Create pagination buttons
+      const totalPages = Math.ceil(posts.length / postsPerPage);
+      pagination.innerHTML = '';
+      for (let i = 1; i <= totalPages; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.textContent = i;
+        pageButton.onclick = () => {
+          currentPage = i;
+          renderPosts(posts);
+        };
+        // Highlight the active page button
+        if (i === currentPage) {
+          pageButton.style.fontWeight = 'bold';
+        }
+        pagination.appendChild(pageButton);
+      }
+    }
+
+    // Prompt for editing and then update the post
+    function editPost(post) {
+      const newText = prompt('Edit your post:', post.text);
+      if (newText !== null && newText !== post.text) {
+        updatePost(post._id, newText);
+      }
+    }
+
+    // Update a post via the API
+    async function updatePost(postId, text) {
+      try {
+        const response = await fetch(`/posts/${postId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          getPosts(); // Refresh list
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error updating post');
+      }
+    }
+
+    // Delete a post via the API
+    async function deletePost(postId) {
+      try {
+        const response = await fetch(`/posts/${postId}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (response.ok) {
+          getPosts();
+        } else {
+          alert(data.message);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error deleting post');
+      }
+    }
+
+    // Logout by redirecting to the logout endpoint
+    function logout() {
+      window.location.href = '/logout';
+    }
+  </script>
+</body>
+</html>
